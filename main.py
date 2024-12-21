@@ -2,7 +2,7 @@ import cv2
 import mediapipe as mp
 import math
 import time
-
+import pyautogui as pag
 
 # Helper function to calculate Euclidean distance
 def calc_distance(point1, point2):
@@ -16,17 +16,22 @@ cap = cv2.VideoCapture(0)
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
+
 f = 0
 last_pinch = 0
 previous_psotions= []
 bufferSize = 5
 last_scroll = 0
 cooldown_time = .5
+x, y, smooth_x, smooth_y = 0, 0, 0, 0
+alpha = 0.5
+screen_width, screen_height = pag.size()
 
 while True:
     ret, frame = cap.read()
     if not ret:
         break
+    frame = cv2.flip(frame, 1)
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = hands.process(frame_rgb)
 
@@ -42,7 +47,7 @@ while True:
             ring_tip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP]
             pinky_tip = hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
             wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-            ring_pip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP]
+            ring_DIP = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_DIP]
 
             # Calculate bounding box for normalization
             x_coords = [landmark.x for landmark in hand_landmarks.landmark]
@@ -72,21 +77,29 @@ while True:
 
             closed_fingers = all(distance < 0.88 for distance in fingers_to_wrist)
             open_hand_condition = thumb_to_index > 0.5 and all(distance > 0.4 for distance in fingers_to_wrist[1:])
-            # print(calc_distance(thumb_tip, ring_pip))
-            mode = 1 if calc_distance(thumb_tip, ring_pip) > 0.06 else 0
+            # print(middle_to_wrist)
+            # mode = 1 if calc_distance(thumb_tip, ring_DIP) > 0.06 else 0
+            if calc_distance(thumb_tip, ring_DIP) >0.06:
+                mode = 1
+            else:
+                if middle_to_wrist < 0.9:
+                    mode = 3
+                else: mode = 0
             gesture = ""
             current_time = time.time()
             if mode == 1:
-                if thumb_to_index <0.2 and middle_to_wrist >0.8:
+                if thumb_to_index <0.2 and middle_to_wrist >0.6:
                     if current_time - last_pinch <0.3:
                         f = 1
                     else:
                         f=0
                         gesture = "click"
+                        print(gesture)  
                     last_pinch = current_time
-                    time.sleep(0.15)
+                    time.sleep(0.1)
                     if f == 1:
                         gesture = "double click"
+                        print(gesture)  
                 elif thumb_to_middle < 0.2 and thumb_to_index>0.3:
                     gesture = "right click"
                 else:
@@ -113,13 +126,22 @@ while True:
                         gesture = "unknown"
                 else:
                     gesture = "Paused(repositioning)"
+            elif mode ==3:
+                x = int(index_tip.x*screen_width)
+                y = int(index_tip.y*screen_height)
+
+                smooth_x = int(alpha * x+(1-alpha)*smooth_x)
+                smooth_y = int(alpha * y+(1-alpha)*smooth_y)
+
+                pag.moveTo(smooth_x, smooth_y)
+
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
             # Display gesture on frame
-            # cv2.putText(frame, mode, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.circle(frame, (x,y), 10, (0, 255, 0), -1)
             cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-            cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # Display video feed
     cv2.imshow('Hand Detection', frame)
