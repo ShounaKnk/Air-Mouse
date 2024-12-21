@@ -24,7 +24,10 @@ bufferSize = 5
 last_scroll = 0
 cooldown_time = .5
 x, y, smooth_x, smooth_y = 0, 0, 0, 0
-alpha = 0.5
+# alpha = 0.7
+prev_x, prev_y = None, None
+cursor_x, cursor_y = pag.position()
+sensitivity = 7
 screen_width, screen_height = pag.size()
 
 while True:
@@ -110,7 +113,7 @@ while True:
                         previous_psotions.append((index_tip.y, middle_tip.y))
                         if len(previous_psotions) > bufferSize:
                             previous_psotions.pop(0)
-
+ 
                         print(previous_psotions)
 
                         avg_index_movement = sum(p[0] - previous_psotions[0][0] for p in previous_psotions)
@@ -127,14 +130,20 @@ while True:
                 else:
                     gesture = "Paused(repositioning)"
             elif mode ==3:
-                x = int(index_tip.x*screen_width)
-                y = int(index_tip.y*screen_height)
+                current_x = int(index_tip.x*frame.shape[1])
+                current_y = int(index_tip.y*frame.shape[0])
 
-                smooth_x = int(alpha * x+(1-alpha)*smooth_x)
-                smooth_y = int(alpha * y+(1-alpha)*smooth_y)
+                if prev_x is not None and prev_y is not None:
+                    del_x = (current_x - prev_x)*sensitivity
+                    del_y = (current_y - prev_y)*sensitivity
 
-                pag.moveTo(smooth_x, smooth_y)
+                    cursor_x += del_x
+                    cursor_y += del_y
 
+                    cursor_x = max(1, min(screen_width -2, cursor_x))
+                    cursor_y = max(1, min(screen_height -2, cursor_y,))
+                    pag.moveTo(cursor_x, cursor_y)
+                prev_x, prev_y = current_x, current_y
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
