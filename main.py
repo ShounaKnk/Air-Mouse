@@ -16,10 +16,12 @@ cap = cv2.VideoCapture(0)
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
-last_pinch = 0
 f = 0
+last_pinch = 0
 previous_psotions= []
 bufferSize = 5
+last_scroll = 0
+cooldown_time = .5
 
 while True:
     ret, frame = cap.read()
@@ -70,7 +72,7 @@ while True:
 
             closed_fingers = all(distance < 0.88 for distance in fingers_to_wrist)
             open_hand_condition = thumb_to_index > 0.5 and all(distance > 0.4 for distance in fingers_to_wrist[1:])
-            print(calc_distance(thumb_tip, ring_pip))
+            # print(calc_distance(thumb_tip, ring_pip))
             mode = 1 if calc_distance(thumb_tip, ring_pip) > 0.06 else 0
             gesture = ""
             current_time = time.time()
@@ -90,26 +92,34 @@ while True:
                 else:
                     gesture = "unknown"
             elif mode == 0:
-                if closed_fingers and thumb_to_index > 0.3 and thumb_to_middle > 0.3:
+                if current_time - last_scroll >= cooldown_time:
                     if index_to_wrist >0.4 and middle_to_wrist > 0.4:
                         previous_psotions.append((index_tip.y, middle_tip.y))
                         if len(previous_psotions) > bufferSize:
                             previous_psotions.pop(0)
-                        
+
+                        print(previous_psotions)
+
                         avg_index_movement = sum(p[0] - previous_psotions[0][0] for p in previous_psotions)
                         avg_middle_movement = sum(p[1] - previous_psotions[0][1] for p in previous_psotions)
-                        
+                            
                         if avg_index_movement < -0.2 and avg_middle_movement < -0.2:
                             gesture = "scroll down"
+                            last_scroll = current_time
                         elif avg_index_movement >0.2 and avg_middle_movement >0.2:
                             gesture = "scroll up"
-                        else:
-                            gesture = "unknown"
+                            last_scroll = current_time
+                    else:
+                        gesture = "unknown"
+                else:
+                    gesture = "Paused(repositioning)"
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
             # Display gesture on frame
+            # cv2.putText(frame, mode, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
             cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
     # Display video feed
     cv2.imshow('Hand Detection', frame)
