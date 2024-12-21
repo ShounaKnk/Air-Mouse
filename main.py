@@ -18,14 +18,8 @@ hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7
 mp_draw = mp.solutions.drawing_utils
 last_pinch = 0
 f = 0
-prev_index_y= None
-prev_middle_y= None
-last_update_time = 0
-update_interval = 0.2
-right_click_start = None
-right_click_detect = False
-right_click_duration = 0.6
-
+previous_psotions= []
+bufferSize = 5
 
 while True:
     ret, frame = cap.read()
@@ -46,6 +40,7 @@ while True:
             ring_tip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP]
             pinky_tip = hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
             wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
+            ring_pip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_PIP]
 
             # Calculate bounding box for normalization
             x_coords = [landmark.x for landmark in hand_landmarks.landmark]
@@ -75,37 +70,44 @@ while True:
 
             closed_fingers = all(distance < 0.88 for distance in fingers_to_wrist)
             open_hand_condition = thumb_to_index > 0.5 and all(distance > 0.4 for distance in fingers_to_wrist[1:])
-            print(thumb_to_index)
+            print(calc_distance(thumb_tip, ring_pip))
+            mode = 1 if calc_distance(thumb_tip, ring_pip) > 0.06 else 0
             gesture = ""
             current_time = time.time()
-            if thumb_to_index <0.1 and thumb_to_middle >0.38:
-                if current_time - last_pinch <0.3:
-                    f = 1
-                else:
-                    f=0
-                    gesture = "click"
-                last_pinch = current_time
-                time.sleep(0.15)
-                if f == 1:
-                    gesture = "double click"
-            elif thumb_to_middle < 0.2 and thumb_to_index>0.3:
-                gesture = "right click"
-            elif closed_fingers and thumb_to_index > 0.3 and thumb_to_middle>0.3:
-                if prev_index_y is not None and prev_middle_y is not None:
-                    if index_tip.y < prev_index_y and middle_tip.y < prev_middle_y:
-                        scroll_direction = "scroll up"
-                    elif index_tip.y > prev_index_y and middle_tip.y > prev_middle_y:
-                        scroll_direction = "scorll down"
+            if mode == 1:
+                if thumb_to_index <0.2 and middle_to_wrist >0.8:
+                    if current_time - last_pinch <0.3:
+                        f = 1
                     else:
-                        scroll_direction = None
-                if scroll_direction:
-                    gesture = scroll_direction
+                        f=0
+                        gesture = "click"
+                    last_pinch = current_time
+                    time.sleep(0.15)
+                    if f == 1:
+                        gesture = "double click"
+                elif thumb_to_middle < 0.2 and thumb_to_index>0.3:
+                    gesture = "right click"
+                else:
+                    gesture = "unknown"
+            elif mode == 0:
+                if closed_fingers and thumb_to_index > 0.3 and thumb_to_middle > 0.3:
+                    if index_to_wrist >0.4 and middle_to_wrist > 0.4:
+                        previous_psotions.append((index_tip.y, middle_tip.y))
+                        if len(previous_psotions) > bufferSize:
+                            previous_psotions.pop(0)
+                        
+                        avg_index_movement = sum(p[0] - previous_psotions[0][0] for p in previous_psotions)
+                        avg_middle_movement = sum(p[1] - previous_psotions[0][1] for p in previous_psotions)
+                        
+                        if avg_index_movement < -0.2 and avg_middle_movement < -0.2:
+                            gesture = "scroll down"
+                        elif avg_index_movement >0.2 and avg_middle_movement >0.2:
+                            gesture = "scroll up"
+                        else:
+                            gesture = "unknown"
             else:
-                gesture = "unknown"
-            if current_time - last_update_time > update_interval:
-                prev_index_y = index_tip.y
-                prev_middle_y = middle_tip.y
-                last_update_time = current_time
+                gesture = "invalid mode"
+                previous_psotions.clear()
             # Display gesture on frame
             cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
