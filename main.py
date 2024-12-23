@@ -19,16 +19,39 @@ mp_draw = mp.solutions.drawing_utils
 
 f = 0
 last_pinch = 0
+double_click_time =0
 previous_psotions= []
 bufferSize = 5
 last_scroll = 0
 cooldown_time = .5
+drag_active = False
+drag_start_time = None
 x, y, smooth_x, smooth_y = 0, 0, 0, 0
-# alpha = 0.7
+# alpha = 0.2
 prev_x, prev_y = None, None
 cursor_x, cursor_y = pag.position()
-sensitivity = 7
+sensitivity = 9
 screen_width, screen_height = pag.size()
+
+
+def cursor_move(index_tip, frame_width, frame_height, sensitivity):
+    global cursor_x, cursor_y, prev_x, prev_y
+    current_x = int(index_tip.x*frame_width)
+    current_y = int(index_tip.y*frame_height)
+
+    if prev_x is not None and prev_y is not None:
+        del_x = (current_x - prev_x)*sensitivity
+        del_y = (current_y - prev_y)*sensitivity
+
+            # cursor_x = cursor_x + alpha*del_x
+            # cursor_y = cursor_y + alpha *del_y
+        cursor_x += del_x
+        cursor_y += del_y
+
+        cursor_x = max(1, min(screen_width -2, cursor_x))
+        cursor_y = max(1, min(screen_height -2, cursor_y,))
+        pag.moveTo(int(cursor_x), int(cursor_y))
+    prev_x, prev_y = current_x, current_y    
 
 while True:
     ret, frame = cap.read()
@@ -97,11 +120,19 @@ while True:
                     else:
                         f=0
                         gesture = "click"
+                        pag.click()
                         print(gesture)  
                     last_pinch = current_time
                     time.sleep(0.1)
                     if f == 1:
                         gesture = "double click"
+                        if current_time - double_click_time <0.5:
+                            pag.mouseDown()
+                            print(gesture)
+                            cursor_move(index_tip, frame.shape[1],frame.shape[0], sensitivity = 4)
+                        pag.mouseUp()
+                        double_click_time = current_time
+
                         print(gesture)  
                 elif thumb_to_middle < 0.2 and thumb_to_index>0.3:
                     gesture = "right click"
@@ -130,20 +161,23 @@ while True:
                 else:
                     gesture = "Paused(repositioning)"
             elif mode ==3:
-                current_x = int(index_tip.x*frame.shape[1])
-                current_y = int(index_tip.y*frame.shape[0])
+                cursor_move(index_tip, frame.shape[1],frame.shape[0], sensitivity = 9)
+                # current_x = int(index_tip.x*frame.shape[1])
+                # current_y = int(index_tip.y*frame.shape[0])
 
-                if prev_x is not None and prev_y is not None:
-                    del_x = (current_x - prev_x)*sensitivity
-                    del_y = (current_y - prev_y)*sensitivity
+                # if prev_x is not None and prev_y is not None:
+                #     del_x = (current_x - prev_x)*sensitivity
+                #     del_y = (current_y - prev_y)*sensitivity
 
-                    cursor_x += del_x
-                    cursor_y += del_y
+                #     # cursor_x = cursor_x + alpha*del_x
+                #     # cursor_y = cursor_y + alpha *del_y
+                #     cursor_x += del_x
+                #     cursor_y += del_y
 
-                    cursor_x = max(1, min(screen_width -2, cursor_x))
-                    cursor_y = max(1, min(screen_height -2, cursor_y,))
-                    pag.moveTo(cursor_x, cursor_y)
-                prev_x, prev_y = current_x, current_y
+                #     cursor_x = max(1, min(screen_width -2, cursor_x))
+                #     cursor_y = max(1, min(screen_height -2, cursor_y,))
+                #     pag.moveTo(int(cursor_x), int(cursor_y))
+                # prev_x, prev_y = current_x, current_y
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
