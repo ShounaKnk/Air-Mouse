@@ -120,11 +120,12 @@ while True:
                     else:
                         f=0
                         gesture = "click"
-                        pag.click()
+                        # pag.click()
                         print(gesture)  
                     last_pinch = current_time
                     time.sleep(0.1)
                     if f == 1:
+                        # pag.doubleClick()
                         gesture = "double click"
                         if current_time - double_click_time <0.5:
                             pag.mouseDown()
@@ -134,8 +135,9 @@ while True:
                         double_click_time = current_time
 
                         print(gesture)  
-                elif thumb_to_middle < 0.2 and thumb_to_index>0.3:
+                elif thumb_to_middle < 0.1 and index_to_wrist>0.6:
                     gesture = "right click"
+                    # pag.rightClick()
                 else:
                     gesture = "unknown"
             elif mode == 0:
