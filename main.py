@@ -4,22 +4,19 @@ import math
 import time
 import pyautogui as pag
 
-# Helper function to calculate Euclidean distance
 def calc_distance(point1, point2):
     return math.sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2)
 
-
-# Capture video feed
 cap = cv2.VideoCapture(0)
 
-# Track hands
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
 
 f = 0
 last_pinch = 0
-double_click_time =0
+last_double_click =0
+double_click = True
 previous_psotions= []
 bufferSize = 5
 last_scroll = 0
@@ -80,7 +77,7 @@ while True:
             y_coords = [landmark.y for landmark in hand_landmarks.landmark]
             hand_width = max(x_coords) - min(x_coords)
             hand_height = max(y_coords) - min(y_coords)
-            hand_size = max(hand_width, hand_height)  # Normalizing factor
+            hand_size = max(hand_width, hand_height)
 
             # Normalize distances
             thumb_to_wrist = calc_distance(thumb_tip, wrist) / hand_size
@@ -103,7 +100,7 @@ while True:
 
             closed_fingers = all(distance < 0.88 for distance in fingers_to_wrist)
             open_hand_condition = thumb_to_index > 0.5 and all(distance > 0.4 for distance in fingers_to_wrist[1:])
-            # print(middle_to_wrist)
+            # print(index_to_wrist)
             # mode = 1 if calc_distance(thumb_tip, ring_DIP) > 0.06 else 0
             if calc_distance(thumb_tip, ring_DIP) >0.06:
                 mode = 1
@@ -116,42 +113,46 @@ while True:
             if mode == 1:
                 if thumb_to_index <0.2 and middle_to_wrist >0.6:
                     if current_time - last_pinch <0.3:
-                        f = 1
+                        if current_time - last_double_click <0.5:
+                            double_click = False
+                            if not drag_active:
+                                drag_active = True
+                                gesture ="drag"
+                                pag.mouseDown()
+                            cursor_move(index_tip, frame.shape[1], frame.shape[0], sensitivity= 3)
+                            last_double_click = current_time
+                        else:
+                            gesture = "double click"
+                            last_double_click  = current_time
+                        last_pinch = current_time
                     else:
-                        f=0
                         gesture = "click"
-                        # pag.click()
-                        print(gesture)  
+                        pag.click()
                     last_pinch = current_time
-                    time.sleep(0.1)
-                    if f == 1:
-                        # pag.doubleClick()
-                        gesture = "double click"
-                        if current_time - double_click_time <0.5:
-                            pag.mouseDown()
-                            print(gesture)
-                            cursor_move(index_tip, frame.shape[1],frame.shape[0], sensitivity = 4)
-                        pag.mouseUp()
-                        double_click_time = current_time
-
-                        print(gesture)  
+                    if not drag_active:
+                        time.sleep(0.1)
                 elif thumb_to_middle < 0.1 and index_to_wrist>0.6:
-                    gesture = "right click"
-                    # pag.rightClick()
+                    if current_time-last_pinch >1:
+                        gesture = "right click"
+                        last_pinch = current_time
+                    pag.rightClick()
                 else:
                     gesture = "unknown"
+                    pag.mouseUp()
+                    drag_active = False
+                    double_click = True
+                if not gesture == "unknown" or gesture == None:
+                    if not drag_active:
+                        print(gesture)
             elif mode == 0:
                 if current_time - last_scroll >= cooldown_time:
                     if index_to_wrist >0.4 and middle_to_wrist > 0.4:
                         previous_psotions.append((index_tip.y, middle_tip.y))
                         if len(previous_psotions) > bufferSize:
                             previous_psotions.pop(0)
- 
                         print(previous_psotions)
-
                         avg_index_movement = sum(p[0] - previous_psotions[0][0] for p in previous_psotions)
                         avg_middle_movement = sum(p[1] - previous_psotions[0][1] for p in previous_psotions)
-                            
                         if avg_index_movement < -0.2 and avg_middle_movement < -0.2:
                             gesture = "scroll down"
                             last_scroll = current_time
