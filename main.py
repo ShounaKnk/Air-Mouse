@@ -20,12 +20,13 @@ double_click = True
 previous_psotions= []
 bufferSize = 5
 last_scroll = 0
+drag_used = 0
 cooldown_time = .5
 drag_active = False
 drag_start_time = None
 x, y, smooth_x, smooth_y = 0, 0, 0, 0
 # alpha = 0.2
-prev_x, prev_y = None, None
+prev_x, prev_y = 0, 0
 cursor_x, cursor_y = pag.position()
 sensitivity = 9
 screen_width, screen_height = pag.size()
@@ -33,22 +34,23 @@ screen_width, screen_height = pag.size()
 
 def cursor_move(index_tip, frame_width, frame_height, sensitivity):
     global cursor_x, cursor_y, prev_x, prev_y
-    current_x = int(index_tip.x*frame_width)
-    current_y = int(index_tip.y*frame_height)
+    if abs(prev_x - int(index_tip.x*frame_width)) > 1 and abs(prev_y - int(index_tip.y*frame_height))>1:
+        current_x = int(index_tip.x*frame_width)
+        current_y = int(index_tip.y*frame_height)
 
-    if prev_x is not None and prev_y is not None:
-        del_x = (current_x - prev_x)*sensitivity
-        del_y = (current_y - prev_y)*sensitivity
+        if prev_x is not None and prev_y is not None:
+            del_x = (current_x - prev_x)*sensitivity
+            del_y = (current_y - prev_y)*sensitivity
+                                                                                    
+                # cursor_x = cursor_x + alpha*del_x
+                # cursor_y = cursor_y + alpha *del_y
+            cursor_x += del_x
+            cursor_y += del_y
 
-            # cursor_x = cursor_x + alpha*del_x
-            # cursor_y = cursor_y + alpha *del_y
-        cursor_x += del_x
-        cursor_y += del_y
-
-        cursor_x = max(1, min(screen_width -2, cursor_x))
-        cursor_y = max(1, min(screen_height -2, cursor_y,))
-        pag.moveTo(int(cursor_x), int(cursor_y))
-    prev_x, prev_y = current_x, current_y    
+            cursor_x = max(1, min(screen_width -2, cursor_x))
+            cursor_y = max(1, min(screen_height -2, cursor_y,))
+            pag.moveTo(int(cursor_x), int(cursor_y))
+        prev_x, prev_y = current_x, current_y    
 
 while True:
     ret, frame = cap.read()
@@ -97,11 +99,8 @@ while True:
                 ring_to_wrist,
                 pinky_to_wrist,
             ]
-
-            closed_fingers = all(distance < 0.88 for distance in fingers_to_wrist)
-            open_hand_condition = thumb_to_index > 0.5 and all(distance > 0.4 for distance in fingers_to_wrist[1:])
             # print(index_to_wrist)
-            # mode = 1 if calc_distance(thumb_tip, ring_DIP) > 0.06 else 0
+            # mode = 1 if calc_distance(thumb_tip, ring_DIP) > 0.06 else 
             if calc_distance(thumb_tip, ring_DIP) >0.06:
                 mode = 1
             else:
@@ -111,39 +110,43 @@ while True:
             gesture = ""
             current_time = time.time()
             if mode == 1:
-                if thumb_to_index <0.2 and middle_to_wrist >0.6:
-                    if current_time - last_pinch <0.3:
-                        if current_time - last_double_click <0.5:
-                            double_click = False
+                if thumb_to_index < 0.1 and middle_to_wrist > 0.6:
+                    if current_time - last_pinch < 0.3:
+                        if current_time - last_double_click < 0.5:
                             if not drag_active:
                                 drag_active = True
-                                gesture ="drag"
+                                gesture = "drag"
+                                drag_used = 1
                                 pag.mouseDown()
-                            cursor_move(index_tip, frame.shape[1], frame.shape[0], sensitivity= 3)
-                            last_double_click = current_time
+                                last_cursor_update = 0  # Initialize cursor update timing for drag
+                            # Throttle cursor updates during drag
+                            if current_time - last_cursor_update > 0.03:  # Update every 30ms
+                                cursor_move(index_tip, frame.shape[1], frame.shape[0], sensitivity=3)
+                                last_cursor_update = current_time
                         else:
                             gesture = "double click"
-                            last_double_click  = current_time
+                            last_double_click = current_time
                         last_pinch = current_time
                     else:
                         gesture = "click"
                         pag.click()
-                    last_pinch = current_time
-                    if not drag_active:
-                        time.sleep(0.1)
-                elif thumb_to_middle < 0.1 and index_to_wrist>0.6:
-                    if current_time-last_pinch >1:
-                        gesture = "right click"
                         last_pinch = current_time
-                    pag.rightClick()
+                elif thumb_to_middle < 0.1 and index_to_wrist > 0.7:
+                    if current_time - last_pinch > 1:  # Throttle right clicks
+                        gesture = "right click"
+                        pag.rightClick()
+                        last_pinch = current_time
                 else:
                     gesture = "unknown"
-                    pag.mouseUp()
-                    drag_active = False
-                    double_click = True
-                if not gesture == "unknown" or gesture == None:
-                    if not drag_active:
-                        print(gesture)
+                    if drag_used:
+                        pag.mouseUp()
+                        drag_active = False
+                        drag_used = 0
+
+                # Print gesture if recognized
+                if gesture != "unknown" and not drag_active:
+                    print(gesture)
+
             elif mode == 0:
                 if current_time - last_scroll >= cooldown_time:
                     if index_to_wrist >0.4 and middle_to_wrist > 0.4:
@@ -165,29 +168,13 @@ while True:
                     gesture = "Paused(repositioning)"
             elif mode ==3:
                 cursor_move(index_tip, frame.shape[1],frame.shape[0], sensitivity = 9)
-                # current_x = int(index_tip.x*frame.shape[1])
-                # current_y = int(index_tip.y*frame.shape[0])
-
-                # if prev_x is not None and prev_y is not None:
-                #     del_x = (current_x - prev_x)*sensitivity
-                #     del_y = (current_y - prev_y)*sensitivity
-
-                #     # cursor_x = cursor_x + alpha*del_x
-                #     # cursor_y = cursor_y + alpha *del_y
-                #     cursor_x += del_x
-                #     cursor_y += del_y
-
-                #     cursor_x = max(1, min(screen_width -2, cursor_x))
-                #     cursor_y = max(1, min(screen_height -2, cursor_y,))
-                #     pag.moveTo(int(cursor_x), int(cursor_y))
-                # prev_x, prev_y = current_x, current_y
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
             # Display gesture on frame
-            cv2.circle(frame, (x,y), 10, (0, 255, 0), -1)
-            cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-            cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            # cv2.circle(frame, (x,y), 10, (0, 255, 0), -1)
+            # cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            # cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # Display video feed
     cv2.imshow('Hand Detection', frame)
