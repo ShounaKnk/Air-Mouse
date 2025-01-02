@@ -20,7 +20,7 @@ double_click = True
 previous_psotions= []
 bufferSize = 5
 last_scroll = 0
-drag_used = 0
+drag_used = 0        
 cooldown_time = .5
 drag_active = False
 drag_start_time = None
@@ -31,10 +31,22 @@ cursor_x, cursor_y = pag.position()
 sensitivity = 9
 screen_width, screen_height = pag.size()
 
+def hand_stationary(index_tip, frame_width, frame_height):
+    global prev_x, prev_y
+    current_x = int(index_tip.x*frame_width)
+    current_y = int(index_tip.y*frame_height)
+    x_stable = abs(current_x - prev_x) < 5
+    y_stable = abs(current_y - prev_y)< 5
+    if x_stable and y_stable:
+        return True
+    else:
+        return False
+    
+
 
 def cursor_move(index_tip, frame_width, frame_height, sensitivity):
     global cursor_x, cursor_y, prev_x, prev_y
-    if abs(prev_x - int(index_tip.x*frame_width)) > 1 and abs(prev_y - int(index_tip.y*frame_height))>1:
+    if not hand_stationary(index_tip, frame_width, frame_height):
         current_x = int(index_tip.x*frame_width)
         current_y = int(index_tip.y*frame_height)
 
@@ -104,12 +116,12 @@ while True:
             if calc_distance(thumb_tip, ring_DIP) >0.06:
                 mode = 1
             else:
-                if middle_to_wrist < 0.9:
+                if middle_to_wrist < 0.6:
                     mode = 3
                 else: mode = 0
             gesture = ""
             current_time = time.time()
-            if mode == 1:
+            if mode == 5:
                 if thumb_to_index < 0.1 and middle_to_wrist > 0.6:
                     if current_time - last_pinch < 0.3:
                         if current_time - last_double_click < 0.5:
@@ -153,7 +165,7 @@ while True:
                         previous_psotions.append((index_tip.y, middle_tip.y))
                         if len(previous_psotions) > bufferSize:
                             previous_psotions.pop(0)
-                        print(previous_psotions)
+                        # print(previous_psotions)
                         avg_index_movement = sum(p[0] - previous_psotions[0][0] for p in previous_psotions)
                         avg_middle_movement = sum(p[1] - previous_psotions[0][1] for p in previous_psotions)
                         if avg_index_movement < -0.2 and avg_middle_movement < -0.2:
@@ -167,14 +179,15 @@ while True:
                 else:
                     gesture = "Paused(repositioning)"
             elif mode ==3:
+                print(middle_to_wrist)
                 cursor_move(index_tip, frame.shape[1],frame.shape[0], sensitivity = 9)
             else:
                 gesture = "invalid mode"
                 previous_psotions.clear()
             # Display gesture on frame
-            # cv2.circle(frame, (x,y), 10, (0, 255, 0), -1)
-            # cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-            # cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            cv2.circle(frame, (x,y), 10, (0, 255, 0), -1)
+            cv2.putText(frame, gesture, (30, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+            cv2.putText(frame, str(mode), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     # Display video feed
     cv2.imshow('Hand Detection', frame)
